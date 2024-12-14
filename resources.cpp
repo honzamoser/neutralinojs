@@ -71,7 +71,7 @@ fs::FileReaderResult __getFileFromBundle(const string &filename) {
         asarArchive.close();
    }
    else {
-        fileReaderResult.status = errors::NE_RS_TREEGER;
+        fileReaderResult.status = errors::NE_RS_FILNOTF;
    }
    return fileReaderResult;
 }
@@ -105,23 +105,26 @@ bool __makeFileTree() {
     return fileTree != nullptr;
 }
 
-void extractFile(const string &filename, const string &outputFilename) {
+bool extractFile(const string &filename, const string &outputFilename) {
     fs::FileReaderResult fileReaderResult = resources::getFile(filename);
+    if(fileReaderResult.status != errors::NE_ST_OK) {
+      return false;
+    }
     fs::FileWriterOptions fileWriterOptions;
     fileWriterOptions.filename = outputFilename;
     fileWriterOptions.data = fileReaderResult.data;
-    fs::writeFile(fileWriterOptions);
+    return fs::writeFile(fileWriterOptions);
 }
 
 fs::FileReaderResult getFile(const string &filename) {
-    if(resources::getMode() == resources::ResourceModeBundle) {
+    if(resources::isBundleMode()) {
         return __getFileFromBundle(filename);
     }
     return fs::readFile(settings::joinAppPath(filename));
 }
 
 void init() {
-    if(resources::getMode() == resources::ResourceModeDir) {
+    if(resources::isDirMode()) {
         return;
     }
     bool resourceLoaderStatus = __makeFileTree();
@@ -138,8 +141,20 @@ resources::ResourceMode getMode() {
     return mode;
 }
 
+bool isDirMode() {
+   return resources::getMode() == resources::ResourceModeDir;
+}
+
+bool isBundleMode() {
+   return resources::getMode() == resources::ResourceModeBundle;
+}
+
+json getFileTree() {
+   return fileTree;
+}
+
 string getModeString() {
-    return mode == resources::ResourceModeDir ? "directory" : "bundle";
+    return resources::isDirMode() ? "directory" : "bundle";
 }
 
 } // namespace resources

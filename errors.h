@@ -50,6 +50,8 @@ enum StatusCode {
     // resources
     NE_RS_TREEGER,
     NE_RS_UNBLDRE,
+    NE_RS_APIRQRF,
+    NE_RS_FILNOTF,
     // server
     NE_SR_UNBSEND,
     NE_SR_UNBPARS,

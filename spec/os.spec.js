@@ -74,6 +74,23 @@ describe('os.spec: os namespace tests', () => {
             assert.ok(vids[1].pid > 0);
         });
 
+        it('assigns a unique virtual pid to each process', async () => {
+            runner.run(`
+                let ids = [];
+                for (let i = 0; i < 10; i++) {
+                    let proc = await Neutralino.os.spawnProcess('node -e "setTimeout(() => {}, 5000);"');
+                    ids.push(proc.id);
+                    if (i % 2 === 0) {
+                        await Neutralino.os.updateSpawnedProcess(proc.id, 'exit');
+                    }
+                }
+                await __close(JSON.stringify(ids));
+            `);
+
+            const ids = JSON.parse(runner.getOutput());
+            const hasDuplicates = ids.some((id, index) => ids.indexOf(id) !== index);
+            assert.ok(!hasDuplicates);
+        });
 
         it('sends the exit code with the exit action via the spawnProcess event', async () => {
             runner.run(`
@@ -335,12 +352,12 @@ describe('os.spec: os namespace tests', () => {
         });
     
         it('retrieves value with special characters', async () => {
-            process.env.SPECIAL_VAR = '@#$%^&*';
+            process.env.SPECIAL_VAR = '@#$%^&*☊☄';
             runner.run(`
                 let value = await Neutralino.os.getEnv('SPECIAL_VAR');
                 await __close(value);
             `);
-            assert.equal(runner.getOutput(), '@#$%^&*');
+            assert.equal(runner.getOutput(), '@#$%^&*☊☄');
         });
     });
 
@@ -535,7 +552,6 @@ describe('os.spec: os namespace tests', () => {
             runner.run(`
                 let documentsPath;
                 documentsPath = await Neutralino.os.getPath('documents');
-                console.log('Documents path:', documentsPath);
                 await __close(documentsPath);
             `);
             let output = runner.getOutput().trim();

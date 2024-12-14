@@ -24,6 +24,7 @@
 #include "api/events/events.h"
 #include "api/extensions/extensions.h"
 #include "api/clipboard/clipboard.h"
+#include "api/res/res.h"
 #include "api/custom/custom.h"
 
 #if defined(__APPLE__)
@@ -52,6 +53,8 @@ map<string, router::NativeMethod> methodMap = {
     {"window.isMaximized", window::controllers::isMaximized},
     {"window.unmaximize", window::controllers::unmaximize},
     {"window.minimize", window::controllers::minimize},
+    {"window.unminimize", window::controllers::unminimize},
+    {"window.isMinimized", window::controllers::isMinimized},
     {"window.isVisible", window::controllers::isVisible},
     {"window.show", window::controllers::show},
     {"window.hide", window::controllers::hide},
@@ -130,6 +133,11 @@ map<string, router::NativeMethod> methodMap = {
     {"clipboard.writeText", clipboard::controllers::writeText},
     {"clipboard.writeImage", clipboard::controllers::writeImage},
     {"clipboard.clear", clipboard::controllers::clear},
+    // Neutralino.resources
+    {"resources.getFiles", res::controllers::getFiles},
+    {"resources.extractFile", res::controllers::extractFile},
+    {"resources.readFile", res::controllers::readFile},
+    {"resources.readBinaryFile", res::controllers::readBinaryFile},
     // Neutralino.custom
     {"custom.getMethods", custom::controllers::getMethods},
     // {"custom.add", custom::controllers::add} // Sample custom method

@@ -27,7 +27,7 @@ json __makeAuthInfoPayload() {
 
 void init() {
     token = helpers::generateToken();
-    connectToken = helpers::split(token, '.')[1];
+    connectToken = helpers::splitTwo(token, '.')[1];
     json jTokenSecurity = settings::getOptionForCurrentMode("tokenSecurity");
     if(!jTokenSecurity.is_null()) {
         tokenSecurity = jTokenSecurity.get<string>() == "one-time"
@@ -36,9 +36,9 @@ void init() {
 }
 
 void exportAuthInfo() {
-    string tempDirPath = settings::joinAppPath("/.tmp");
+    string tempDirPath = settings::joinAppDataPath("/.tmp");
     filesystem::create_directories(CONVSTR(tempDirPath));
-    string tempAuthInfoPath = settings::joinAppPath("/.tmp/auth_info.json");
+    string tempAuthInfoPath = settings::joinAppDataPath("/.tmp/auth_info.json");
     fs::FileWriterOptions fileWriterOptions = {
         tempAuthInfoPath,
         __makeAuthInfoPayload().dump()

@@ -101,7 +101,9 @@ const extensionMessageQueue = {};
 function init$1() {
     initAuth();
     const connectToken = getAuthToken().split('.')[1];
-    ws = new WebSocket(`ws://${window.location.hostname}:${window.NL_PORT}?connectToken=${connectToken}`);
+    const hostname = (window.NL_GINJECTED || window.NL_CINJECTED) ?
+        'localhost' : window.location.hostname;
+    ws = new WebSocket(`ws://${hostname}:${window.NL_PORT}?connectToken=${connectToken}`);
     registerLibraryEvents();
     registerSocketEvents();
 }
@@ -261,10 +263,10 @@ function appendBinaryFile(path, data) {
         data: arrayBufferToBase64(data)
     });
 }
-function readFile(path, options) {
+function readFile$1(path, options) {
     return sendMessage('filesystem.readFile', Object.assign({ path }, options));
 }
-function readBinaryFile(path, options) {
+function readBinaryFile$1(path, options) {
     return new Promise((resolve, reject) => {
         sendMessage('filesystem.readBinaryFile', Object.assign({ path }, options))
             .then((base64Data) => {
@@ -330,9 +332,9 @@ var filesystem = /*#__PURE__*/Object.freeze({
     getWatchers: getWatchers,
     move: move$1,
     openFile: openFile,
-    readBinaryFile: readBinaryFile,
+    readBinaryFile: readBinaryFile$1,
     readDirectory: readDirectory,
-    readFile: readFile,
+    readFile: readFile$1,
     remove: remove,
     removeWatcher: removeWatcher,
     updateOpenedFile: updateOpenedFile,
@@ -530,6 +532,12 @@ function isMaximized() {
 function minimize() {
     return sendMessage('window.minimize');
 }
+function unminimize() {
+    return sendMessage('window.unminimize');
+}
+function isMinimized() {
+    return sendMessage('window.isMinimized');
+}
 function setFullScreen() {
     return sendMessage('window.setFullScreen');
 }
@@ -560,15 +568,16 @@ function move(x, y) {
 function center() {
     return sendMessage('window.center');
 }
-function setDraggableRegion(domElementOrId) {
+function setDraggableRegion(domElementOrId, options = {}) {
     return new Promise((resolve, reject) => {
         const draggableRegion = domElementOrId instanceof Element ?
             domElementOrId : document.getElementById(domElementOrId);
         let initialClientX = 0;
         let initialClientY = 0;
         let absDragMovementDistance = 0;
-        let isPointerCaptured = false;
+        let shouldReposition = false;
         let lastMoveTimestamp = performance.now();
+        let isPointerCaptured = options.alwaysCapture;
         if (!draggableRegion) {
             return reject({
                 code: 'NE_WD_DOMNOTF',
@@ -583,10 +592,24 @@ function setDraggableRegion(domElementOrId) {
         }
         draggableRegion.addEventListener('pointerdown', startPointerCapturing);
         draggableRegion.addEventListener('pointerup', endPointerCapturing);
+        draggableRegion.addEventListener('pointercancel', endPointerCapturing);
         draggableRegions.set(draggableRegion, { pointerdown: startPointerCapturing, pointerup: endPointerCapturing });
         function onPointerMove(evt) {
             return __awaiter(this, void 0, void 0, function* () {
-                if (isPointerCaptured) {
+                var _a;
+                // Get absolute drag distance from the starting point
+                const dx = evt.clientX - initialClientX, dy = evt.clientY - initialClientY;
+                absDragMovementDistance = Math.sqrt(dx * dx + dy * dy);
+                // Only start pointer capturing when the user dragged more than a certain amount of distance
+                // This ensures that the user can also click on the dragable area, e.g. if the area is menu / navbar
+                if (absDragMovementDistance >= ((_a = options.dragMinDistance) !== null && _a !== void 0 ? _a : 10)) {
+                    shouldReposition = true;
+                    if (!isPointerCaptured) {
+                        draggableRegion.setPointerCapture(evt.pointerId);
+                        isPointerCaptured = true;
+                    }
+                }
+                if (shouldReposition) {
                     const currentMilliseconds = performance.now();
                     const timeTillLastMove = currentMilliseconds - lastMoveTimestamp;
                     // Limit move calls to 1 per every 5ms - TODO: introduce constant instead of magic number?
@@ -599,14 +622,6 @@ function setDraggableRegion(domElementOrId) {
                     yield move(evt.screenX - initialClientX, evt.screenY - initialClientY);
                     return;
                 }
-                // Add absolute drag distance
-                absDragMovementDistance = Math.sqrt(evt.movementX * evt.movementX + evt.movementY * evt.movementY);
-                // Only start pointer capturing when the user dragged more than a certain amount of distance
-                // This ensures that the user can also click on the dragable area, e.g. if the area is menu / navbar
-                if (absDragMovementDistance >= 10) { // TODO: introduce constant instead of magic number?
-                    isPointerCaptured = true;
-                    draggableRegion.setPointerCapture(evt.pointerId);
-                }
             });
         }
         function startPointerCapturing(evt) {
@@ -615,6 +630,9 @@ function setDraggableRegion(domElementOrId) {
             initialClientX = evt.clientX;
             initialClientY = evt.clientY;
             draggableRegion.addEventListener('pointermove', onPointerMove);
+            if (options.alwaysCapture) {
+                draggableRegion.setPointerCapture(evt.pointerId);
+            }
         }
         function endPointerCapturing(evt) {
             draggableRegion.removeEventListener('pointermove', onPointerMove);
@@ -645,6 +663,7 @@ function unsetDraggableRegion(domElementOrId) {
         const { pointerdown, pointerup } = draggableRegions.get(draggableRegion);
         draggableRegion.removeEventListener('pointerdown', pointerdown);
         draggableRegion.removeEventListener('pointerup', pointerup);
+        draggableRegion.removeEventListener('pointercancel', pointerup);
         draggableRegions.delete(draggableRegion);
         resolve({
             success: true,
@@ -725,6 +744,7 @@ var window$1 = /*#__PURE__*/Object.freeze({
     hide: hide,
     isFullScreen: isFullScreen,
     isMaximized: isMaximized,
+    isMinimized: isMinimized,
     isVisible: isVisible,
     maximize: maximize,
     minimize: minimize,
@@ -737,6 +757,7 @@ var window$1 = /*#__PURE__*/Object.freeze({
     setTitle: setTitle,
     show: show,
     unmaximize: unmaximize,
+    unminimize: unminimize,
     unsetDraggableRegion: unsetDraggableRegion
 });
 
@@ -865,6 +886,35 @@ var clipboard = /*#__PURE__*/Object.freeze({
     writeText: writeText
 });
 
+function getFiles() {
+    return sendMessage('resources.getFiles');
+}
+function extractFile(path, destination) {
+    return sendMessage('resources.extractFile', { path, destination });
+}
+function readFile(path) {
+    return sendMessage('resources.readFile', { path });
+}
+function readBinaryFile(path) {
+    return new Promise((resolve, reject) => {
+        sendMessage('resources.readBinaryFile', { path })
+            .then((base64Data) => {
+            resolve(base64ToBytesArray(base64Data));
+        })
+            .catch((error) => {
+            reject(error);
+        });
+    });
+}
+
+var resources = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    extractFile: extractFile,
+    getFiles: getFiles,
+    readBinaryFile: readBinaryFile,
+    readFile: readFile
+});
+
 function getMethods() {
     return sendMessage('custom.getMethods');
 }
@@ -874,7 +924,7 @@ var custom = /*#__PURE__*/Object.freeze({
     getMethods: getMethods
 });
 
-var version = "5.2.0";
+var version = "5.5.0";
 
 let initialized = false;
 function init(options = {}) {
@@ -910,5 +960,5 @@ function init(options = {}) {
     initialized = true;
 }
 
-export { app, clipboard, computer, custom, debug, events, extensions, filesystem, init, os, storage, updater, window$1 as window };
+export { app, clipboard, computer, custom, debug, events, extensions, filesystem, init, os, resources, storage, updater, window$1 as window };
 //# sourceMappingURL=neutralino.mjs.map
